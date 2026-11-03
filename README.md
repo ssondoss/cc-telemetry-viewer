@@ -2,6 +2,8 @@
 
 A small, local, live dashboard for [Claude Code](https://code.claude.com) telemetry. It shows tokens, cost and time, grouped by request type (main thread, subagents, `agent_summary`, `away_summary`, …), by model, by Claude Code version or by day.
 
+![cc-telemetry-viewer dashboard](docs/screenshot.png)
+
 - **One command, no dependencies.** It receives OpenTelemetry data from Claude Code directly. You don't need a collector, Docker or a database.
 - **Local only.** It listens on `127.0.0.1` and never sends data anywhere.
 - **Privacy-minded storage.** Only the fields the dashboard needs are saved. Emails, account IDs and organization IDs are dropped.

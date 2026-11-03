@@ -49,6 +49,18 @@
     </label>
   </section>
 
+  <section id="filters">
+    <label>Type
+      <input id="filter-source" type="search" list="source-options" placeholder="Search request type" autocomplete="off">
+    </label>
+    <label>Model
+      <input id="filter-model" type="search" list="model-options" placeholder="Search model" autocomplete="off">
+    </label>
+    <button id="clear-filters" type="button" hidden>Clear</button>
+    <datalist id="source-options"></datalist>
+    <datalist id="model-options"></datalist>
+  </section>
+
   <main>
     <section data-panel="overview">
       <div class="cards" id="cards"></div>
@@ -56,9 +68,9 @@
 
     <section data-panel="breakdown">
       <h2>Breakdown by <span id="group-label"></span></h2>
-      <table>
+      <table data-table="breakdown">
         <thead>
-          <tr><th>Group</th><th>Requests</th><th>Input</th><th>Cache read</th><th>Cache write</th><th>Output</th><th>Cost</th><th>Avg time</th><th>Share</th><th></th></tr>
+          <tr><th>Group</th><th data-sort="requests">Requests</th><th data-sort="input">Input</th><th data-sort="cacheRead">Cache read</th><th data-sort="cacheWrite">Cache write</th><th data-sort="output">Output</th><th data-sort="cost">Cost</th><th data-sort="avgTime">Avg time</th><th data-sort="share">Share</th><th></th></tr>
         </thead>
         <tbody id="breakdown-body"></tbody>
       </table>
@@ -66,9 +78,9 @@
 
     <section data-panel="daily">
       <h2>Daily history</h2>
-      <table>
+      <table data-table="daily">
         <thead>
-          <tr><th>Day</th><th>Requests</th><th>Tokens</th><th>Output</th><th>Cost</th><th>Total time</th></tr>
+          <tr><th>Day</th><th data-sort="requests">Requests</th><th data-sort="tokens">Tokens</th><th data-sort="output">Output</th><th data-sort="cost">Cost</th><th data-sort="durationMs">Total time</th></tr>
         </thead>
         <tbody id="daily-body"></tbody>
       </table>
@@ -76,9 +88,9 @@
 
     <section data-panel="latest">
       <h2>Latest requests</h2>
-      <table>
+      <table data-table="latest">
         <thead>
-          <tr><th>Time</th><th>Type</th><th>Model</th><th>Input</th><th>Cache read</th><th>Cache write</th><th>Output</th><th>Cost</th><th>Time</th></tr>
+          <tr><th>Time</th><th>Type</th><th>Model</th><th data-sort="input">Input</th><th data-sort="cacheRead">Cache read</th><th data-sort="cacheWrite">Cache write</th><th data-sort="output">Output</th><th data-sort="cost">Cost</th><th data-sort="durationMs">Time</th></tr>
         </thead>
         <tbody id="latest-body"></tbody>
       </table>

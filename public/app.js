@@ -5,6 +5,7 @@ const DEFAULT_SETTINGS = {
   groupBy: 'source',
   range: '7',
   refreshSeconds: 3,
+  sort: {},
 };
 const GROUP_LABELS = { source: 'request type', model: 'model', version: 'Claude Code version', date: 'day' };
 const METRIC_KEYS = ['requests', 'input', 'cacheRead', 'cacheWrite', 'output', 'cost', 'durationMs'];
@@ -14,15 +15,27 @@ const formatNumber = value => Math.round(value).toLocaleString();
 const formatCost = value => `$${value.toFixed(value < 1 ? 4 : 2)}`;
 const formatSeconds = ms => `${(ms / 1000).toFixed(1)}s`;
 const totalTokens = row => row.input + row.cacheRead + row.cacheWrite + row.output;
+const SORT_VALUES = {
+  avgTime: row => (row.requests ? row.durationMs / row.requests : 0),
+  tokens: totalTokens,
+  share: row => row.cost,
+};
 
 let settings = loadSettings();
 let refreshTimer;
 let seenRecent = new Set();
+let lastSummary;
+const filters = { source: '', model: '' };
 
 function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
-    return { ...DEFAULT_SETTINGS, ...saved, panels: { ...DEFAULT_SETTINGS.panels, ...saved.panels } };
+    return {
+      ...DEFAULT_SETTINGS,
+      ...saved,
+      panels: { ...DEFAULT_SETTINGS.panels, ...saved.panels },
+      sort: { ...saved.sort },
+    };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);
   }
@@ -43,6 +56,23 @@ function rowsInRange(rows) {
   if (settings.range === 'all') return rows;
   const cutoff = localDate(Date.now() - (Number(settings.range) - 1) * DAY_MS);
   return rows.filter(row => row.date >= cutoff);
+}
+
+function matchesFilters(row) {
+  return row.source.toLowerCase().includes(filters.source) && row.model.toLowerCase().includes(filters.model);
+}
+
+function isFiltered() {
+  return Boolean(filters.source || filters.model);
+}
+
+// Applies the user's column sort, if any. Without one, the list keeps its default order.
+function applySort(list, table) {
+  const sort = settings.sort[table];
+  if (!sort) return list;
+  const value = SORT_VALUES[sort.key] ?? (row => row[sort.key]);
+  const direction = sort.dir === 'asc' ? 1 : -1;
+  return list.sort((a, b) => (value(a) - value(b)) * direction);
 }
 
 function sumRows(rows) {
@@ -117,9 +147,10 @@ function renderBreakdown(rows, total) {
   const groups = groupRows(rows, settings.groupBy);
   if (settings.groupBy === 'date') groups.sort((a, b) => b.name.localeCompare(a.name));
   else groups.sort((a, b) => b.cost - a.cost);
+  applySort(groups, 'breakdown');
 
   if (groups.length === 0) {
-    $('breakdown-body').replaceChildren(emptyRow(10, 'No requests in this range yet'));
+    $('breakdown-body').replaceChildren(emptyRow(10, isFiltered() ? 'No requests match the filter' : 'No requests in this range yet'));
     return;
   }
 
@@ -154,9 +185,9 @@ function renderBreakdown(rows, total) {
 }
 
 function renderDaily(rows) {
-  const days = groupRows(rows, 'date').sort((a, b) => b.name.localeCompare(a.name));
+  const days = applySort(groupRows(rows, 'date').sort((a, b) => b.name.localeCompare(a.name)), 'daily');
   if (days.length === 0) {
-    $('daily-body').replaceChildren(emptyRow(6, 'No history yet'));
+    $('daily-body').replaceChildren(emptyRow(6, isFiltered() ? 'No requests match the filter' : 'No history yet'));
     return;
   }
   $('daily-body').replaceChildren(...days.map(day => tableRow([
@@ -173,13 +204,19 @@ function recentKey(request) {
   return `${request.time}|${request.source}|${request.cost}`;
 }
 
-function renderLatest(recent) {
+function renderLatest(allRecent) {
+  // Track "seen" on the unfiltered list, so changing the filter doesn't flash old rows as new.
+  const isFirstRender = seenRecent.size === 0;
+  const previouslySeen = seenRecent;
+  seenRecent = new Set(allRecent.map(recentKey));
+  const recent = applySort(allRecent.filter(matchesFilters), 'latest');
   if (recent.length === 0) {
-    $('latest-body').replaceChildren(emptyRow(9, 'No detailed logs. New requests appear here as Claude Code sends them'));
-    seenRecent = new Set();
+    const message = isFiltered() && allRecent.length
+      ? 'No requests match the filter'
+      : 'No detailed logs. New requests appear here as Claude Code sends them';
+    $('latest-body').replaceChildren(emptyRow(9, message));
     return;
   }
-  const isFirstRender = seenRecent.size === 0;
   $('latest-body').replaceChildren(...recent.map(request => tableRow([
     new Date(request.time).toLocaleTimeString(),
     request.source,
@@ -190,8 +227,7 @@ function renderLatest(recent) {
     formatNumber(request.output),
     formatCost(request.cost),
     formatSeconds(request.durationMs),
-  ], !isFirstRender && !seenRecent.has(recentKey(request)) ? 'new' : '')));
-  seenRecent = new Set(recent.map(recentKey));
+  ], !isFirstRender && !previouslySeen.has(recentKey(request)) ? 'new' : '')));
 }
 
 function renderStorage(storage) {
@@ -207,18 +243,44 @@ function applyPanelVisibility() {
   }
 }
 
+function updateOptions(id, values) {
+  const list = $(id);
+  const sorted = [...new Set(values)].sort();
+  if (list.dataset.values === sorted.join('\n')) return;
+  list.dataset.values = sorted.join('\n');
+  list.replaceChildren(...sorted.map(value => Object.assign(document.createElement('option'), { value })));
+}
+
+function render() {
+  if (!lastSummary) return;
+  const summary = lastSummary;
+  updateOptions('source-options', summary.rows.map(row => row.source));
+  updateOptions('model-options', summary.rows.map(row => row.model));
+  const rows = rowsInRange(summary.rows).filter(matchesFilters);
+  const total = sumRows(rows);
+  renderOverview(total);
+  renderBreakdown(rows, total);
+  renderDaily(rows);
+  renderLatest(summary.recent);
+  renderStorage(summary.storage);
+  renderSortIndicators();
+}
+
+function renderSortIndicators() {
+  for (const th of document.querySelectorAll('th[data-sort]')) {
+    const sort = settings.sort[th.closest('table').dataset.table];
+    const active = sort?.key === th.dataset.sort;
+    th.setAttribute('aria-sort', active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+    th.querySelector('.arrow').textContent = active ? (sort.dir === 'asc' ? '▲' : '▼') : '↕';
+  }
+}
+
 async function refresh() {
   try {
     const response = await fetch('/api/summary');
     if (!response.ok) throw new Error(response.statusText);
-    const summary = await response.json();
-    const rows = rowsInRange(summary.rows);
-    const total = sumRows(rows);
-    renderOverview(total);
-    renderBreakdown(rows, total);
-    renderDaily(rows);
-    renderLatest(summary.recent);
-    renderStorage(summary.storage);
+    lastSummary = await response.json();
+    render();
     $('status').textContent = `updated ${new Date().toLocaleTimeString()}`;
   } catch {
     $('status').textContent = 'cannot reach the viewer server. Is it still running?';
@@ -269,6 +331,49 @@ function bindSettings() {
   });
 }
 
+// Click cycle per column: descending, ascending, then back to the default order.
+function bindSorting() {
+  for (const th of document.querySelectorAll('th[data-sort]')) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'sort';
+    const arrow = document.createElement('span');
+    arrow.className = 'arrow';
+    arrow.setAttribute('aria-hidden', 'true');
+    button.append(...th.childNodes, arrow);
+    th.append(button);
+    button.addEventListener('click', () => {
+      const table = th.closest('table').dataset.table;
+      const key = th.dataset.sort;
+      const current = settings.sort[table];
+      if (current?.key !== key) settings.sort[table] = { key, dir: 'desc' };
+      else if (current.dir === 'desc') settings.sort[table] = { key, dir: 'asc' };
+      else delete settings.sort[table];
+      saveSettings();
+      render();
+    });
+  }
+  renderSortIndicators();
+}
+
+function bindFilters() {
+  for (const key of ['source', 'model']) {
+    $(`filter-${key}`).addEventListener('input', event => {
+      filters[key] = event.target.value.trim().toLowerCase();
+      $('clear-filters').hidden = !isFiltered();
+      render();
+    });
+  }
+  $('clear-filters').addEventListener('click', () => {
+    for (const key of ['source', 'model']) {
+      filters[key] = '';
+      $(`filter-${key}`).value = '';
+    }
+    $('clear-filters').hidden = true;
+    render();
+  });
+}
+
 function bindCompact() {
   $('compact').addEventListener('click', async () => {
     const confirmed = confirm(
@@ -284,6 +389,8 @@ function bindCompact() {
 }
 
 bindSettings();
+bindSorting();
+bindFilters();
 bindCompact();
 applyPanelVisibility();
 refresh();
