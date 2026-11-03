@@ -1,0 +1,29 @@
+{
+  "name": "cc-telemetry-viewer",
+  "version": "0.1.0",
+  "description": "A local, live dashboard for Claude Code OpenTelemetry data: tokens, cost and time grouped by request type.",
+  "type": "module",
+  "bin": {
+    "cc-telemetry-viewer": "bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "public"
+  ],
+  "scripts": {
+    "start": "node bin/cli.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "keywords": [
+    "claude-code",
+    "opentelemetry",
+    "otlp",
+    "telemetry",
+    "dashboard",
+    "token-usage"
+  ],
+  "license": "MIT"
+}

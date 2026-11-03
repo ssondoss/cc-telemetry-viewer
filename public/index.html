@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Claude Code telemetry viewer</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Claude Code telemetry</h1>
+      <span id="status">loading…</span>
+    </div>
+    <button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings">Settings</button>
+  </header>
+
+  <section id="settings" hidden>
+    <fieldset>
+      <legend>Panels</legend>
+      <label><input type="checkbox" data-panel-toggle="overview"> Overview</label>
+      <label><input type="checkbox" data-panel-toggle="breakdown"> Breakdown</label>
+      <label><input type="checkbox" data-panel-toggle="daily"> Daily history</label>
+      <label><input type="checkbox" data-panel-toggle="latest"> Latest requests</label>
+    </fieldset>
+    <label>Group breakdown by
+      <select id="group-by">
+        <option value="source">Request type</option>
+        <option value="model">Model</option>
+        <option value="version">Claude Code version</option>
+        <option value="date">Day</option>
+      </select>
+    </label>
+    <label>Range
+      <select id="range">
+        <option value="1">Today</option>
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="all">All time</option>
+      </select>
+    </label>
+    <label>Refresh every
+      <select id="refresh">
+        <option value="1">1s</option>
+        <option value="3">3s</option>
+        <option value="10">10s</option>
+        <option value="30">30s</option>
+      </select>
+    </label>
+  </section>
+
+  <main>
+    <section data-panel="overview">
+      <div class="cards" id="cards"></div>
+    </section>
+
+    <section data-panel="breakdown">
+      <h2>Breakdown by <span id="group-label"></span></h2>
+      <table>
+        <thead>
+          <tr><th>Group</th><th>Requests</th><th>Input</th><th>Cache read</th><th>Cache write</th><th>Output</th><th>Cost</th><th>Avg time</th><th>Share</th><th></th></tr>
+        </thead>
+        <tbody id="breakdown-body"></tbody>
+      </table>
+    </section>
+
+    <section data-panel="daily">
+      <h2>Daily history</h2>
+      <table>
+        <thead>
+          <tr><th>Day</th><th>Requests</th><th>Tokens</th><th>Output</th><th>Cost</th><th>Total time</th></tr>
+        </thead>
+        <tbody id="daily-body"></tbody>
+      </table>
+    </section>
+
+    <section data-panel="latest">
+      <h2>Latest requests</h2>
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Type</th><th>Model</th><th>Input</th><th>Cache read</th><th>Cache write</th><th>Output</th><th>Cost</th><th>Time</th></tr>
+        </thead>
+        <tbody id="latest-body"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <span id="storage"></span>
+    <button id="compact" type="button">Compact logs</button>
+  </footer>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
